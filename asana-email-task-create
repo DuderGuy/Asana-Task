@@ -1,0 +1,54 @@
+function forwardEmailsToAsana() {
+  const asanaEmail = "x+(project-id)@mail.asana.com"; // Replace with your Asana project email
+  const labelName = "Processed"; // Custom label to track the initial email of forwarded threads, this can be disabled by commenting out lines 8-12 and 40
+  const searchQuery = "in:inbox from:someone@email.com" // This is the query that you would typically put in the gmail search bar at the top (you have to be using a gmail account for this script to work btw)
+  const maxThreads = 20; // Adjust the number of most recent emails to check
+
+  const props = PropertiesService.getScriptProperties();
+
+  // Create label if it doesn't exist
+  let label = GmailApp.getUserLabelByName(labelName);
+  if (!label) {
+    label = GmailApp.createLabel(labelName);
+  }
+
+  // Search recent inbox threads that DON'T have the label
+  const threads = GmailApp.search(searchQuery + ' -label:' + labelName, 0, maxThreads);
+
+  for (const thread of threads) {
+    const messages = thread.getMessages();
+    const firstMessage = messages[0]; // Only forwards the first email in the thread
+    const msgId = firstMessage.getId();
+
+    // Skip if this first message has already been processed
+    if (props.getProperty(msgId)) {
+      continue;
+    }
+
+    const subject = firstMessage.getSubject();
+    const body = firstMessage.getBody();
+
+    // Forward the email to Asana
+    GmailApp.sendEmail(asanaEmail, subject, "", {
+      htmlBody: body
+    });
+
+    // Track message ID to avoid future duplicates
+    props.setProperty(msgId, new Date().toISOString());
+
+    // Mark thread as processed
+    thread.addLabel(label);
+  }
+}
+
+function clearAllStoredMessageIds() { //Run this manually if you want to start from scratch and start receiving tasks from old emails
+  PropertiesService.getScriptProperties().deleteAllProperties();
+  Logger.log("All message IDs cleared.");
+}
+
+function logAllProperties() { // Run this manually if you want to check and confirm the existing message IDs in the list in JSON format
+  const props = PropertiesService.getScriptProperties();
+  Logger.log("ScriptPropertiesKeys: " + JSON.stringify(props.getProperties()));
+  Logger.log("DocumentProperties: " + JSON.stringify(PropertiesService.getDocumentProperties()));
+}
+
